@@ -1,20 +1,42 @@
-import React, { useState, useRef } from "react";
-import { View, Image, Text, ScrollView, StyleSheet, TouchableOpacity} from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { View, Image, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
-const company = {
-  name: 'Farmácia Controlada',
-  cnpj: '12.345.678/0001-90',
-  address: 'Rua das Flores, 123 · Centro · São Paulo/SP',
-  phone: '(11) 98765-4321',
-  email: 'contato@farmacia.com',
-  createdAt: '01/05/2024',
+
+import { obterAuth, limparAuth, API_BASE_URL } from "../../../services/api"; 
+
+
+const formatarCNPJ = (cnpj: string) => {
+  if (!cnpj) return "";
+  const puro = cnpj.replace(/\D/g, "");
+  return puro.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+};
+
+const formatarTelefone = (tel: string) => {
+  if (!tel) return "";
+  const puro = tel.replace(/\D/g, "");
+  if (puro.length === 11) {
+    return puro.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+  }
+  return puro.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
+};
+
+const formatarData = (dataRaw: string) => {
+  if (!dataRaw) return "";
+  try {
+    const data = new Date(dataRaw);
+    if (isNaN(data.getTime())) return dataRaw; 
+    return data.toLocaleDateString("pt-BR");
+  } catch {
+    return dataRaw;
+  }
 };
 
 export default function Perfil() {
- 
+  const [dadosEmpresa, setDadosEmpresa] = useState<any>(null);
+  const [carregando, setCarregando] = useState<boolean>(true);
   const [perfilFoto, setPerfilFoto] = useState<string | null>(null);
   const [cameraAtiva, setCameraAtiva] = useState<boolean>(false);
   const [ladoCamera, setLadoCamera] = useState<'back' | 'front'>('front'); 
@@ -23,6 +45,31 @@ export default function Perfil() {
   const cameraRef = useRef<any>(null);
 
   
+  useEffect(() => {
+    async function carregarPerfil() {
+      try {
+        const auth = await obterAuth();
+        if (auth && auth.empresa) {
+          setDadosEmpresa(auth.empresa);
+          
+         
+          if (auth.empresa.foto) {
+            setPerfilFoto(`${API_BASE_URL}/uploads/${auth.empresa.foto}`);
+          }
+        } else {
+          Alert.alert("Sessão Expirada", "Não foi possível carregar os dados da empresa.");
+          router.replace('/(tabs)/empresaLogin');
+        }
+      } catch (error) {
+        console.log("Erro ao obter dados locais:", error);
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarPerfil();
+  }, []);
+
   const handleAbrirCamera = async () => {
     if (!permissao?.granted) {
       const resultado = await pedirPermissao();
@@ -31,7 +78,6 @@ export default function Perfil() {
     setCameraAtiva(true);
   };
 
-  
   const tirarFoto = async () => {
     if (cameraRef.current) {
       try {
@@ -42,6 +88,7 @@ export default function Perfil() {
         if (foto && foto.uri) {
           setPerfilFoto(foto.uri); 
           setCameraAtiva(false);   
+        
         }
       } catch (error) {
         console.log("Erro ao tirar foto:", error);
@@ -49,38 +96,56 @@ export default function Perfil() {
     }
   };
 
-  
+  const handleSair = async () => {
+    Alert.alert("Sair", "Deseja realmente sair do aplicativo?", [
+      { text: "Cancelar", style: "cancel" },
+      { 
+        text: "Sair", 
+        style: "destructive",
+        onPress: async () => {
+          await limparAuth(); 
+          router.replace('/(tabs)/empresaLogin');
+        }
+      }
+    ]);
+  };
+
+  if (carregando) {
+    return (
+      <View style={[styles.container, styles.containerCentro]}>
+        <ActivityIndicator size="large" color="#72CAA5" />
+        <Text style={styles.textoCarregando}>Carregando dados do perfil...</Text>
+      </View>
+    );
+  }
+
   if (cameraAtiva) {
     return (
       <View style={styles.cameraContainer}>
         <CameraView 
-          style={styles.camera} 
+          style={StyleSheet.absoluteFillObject} 
           facing={ladoCamera} 
           ref={cameraRef}
-        >
+        />
           
-          <TouchableOpacity style={styles.botaoFecharCamera} onPress={() => setCameraAtiva(false)}>
-            <Ionicons name="close" size={28} color="#fff" />
+        <TouchableOpacity style={styles.botaoFecharCamera} onPress={() => setCameraAtiva(false)}>
+          <Ionicons name="close" size={28} color="#fff" />
+        </TouchableOpacity>
+
+        <View style={styles.containerBotoesCamera}>
+          <TouchableOpacity 
+            style={styles.botaoCirculoSecundario} 
+            onPress={() => setLadoCamera(current => (current === 'back' ? 'front' : 'back'))}
+          >
+            <Ionicons name="camera-reverse-outline" size={24} color="#FFF" />
           </TouchableOpacity>
 
-          <View style={styles.containerBotoesCamera}>
-            
-            <TouchableOpacity 
-              style={styles.botaoCirculoSecundario} 
-              onPress={() => setLadoCamera(current => (current === 'back' ? 'front' : 'back'))}
-            >
-              <Ionicons name="camera-reverse-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.botaoDisparador} onPress={tirarFoto}>
+            <View style={styles.circuloInternoDisparador} />
+          </TouchableOpacity>
 
-          
-            <TouchableOpacity style={styles.botaoDisparador} onPress={tirarFoto}>
-              <View style={styles.circuloInternoDisparador} />
-            </TouchableOpacity>
-
-            
-            <View style={{ width: 50 }} />
-          </View>
-        </CameraView>
+          <View style={{ width: 50 }} />
+        </View>
       </View>
     );
   }
@@ -91,7 +156,6 @@ export default function Perfil() {
         <View style={styles.header}>
           <View style={styles.profileGroup}>
             <View style={styles.profileImageWrapper}>
-              
               <Image
                 source={perfilFoto ? { uri: perfilFoto } : require('../../../assets/LogoFarm.fw.png')}
                 style={styles.profileImage}
@@ -105,7 +169,9 @@ export default function Perfil() {
           </View>
 
           <View style={styles.headerText}>
-            <Text style={styles.companyName}>{company.name}</Text>
+            <Text style={styles.companyName} numberOfLines={2}>
+              {dadosEmpresa?.razaoSocial || dadosEmpresa?.nome || "Empresa Logada"}
+            </Text>
             <Text style={styles.companyRole}>Conta corporativa</Text>
             <Text style={styles.companyStatus}>Perfil verificado e ativo</Text>
           </View>
@@ -117,34 +183,48 @@ export default function Perfil() {
 
         <View style={styles.infoCard}>
           <Text style={styles.sectionTitle}>Informações da empresa</Text>
+          
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>CNPJ</Text>
-            <Text style={styles.infoValue}>{company.cnpj}</Text>
+            <Text style={styles.infoValue}>{formatarCNPJ(dadosEmpresa?.cnpj)}</Text>
           </View>
+          
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Endereço</Text>
-            <Text style={styles.infoValue}>{company.address}</Text>
+            <Text style={styles.infoValue}>
+              {dadosEmpresa?.endereco || "Não informado"}
+            </Text>
           </View>
+          
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Telefone</Text>
-            <Text style={styles.infoValue}>{company.phone}</Text>
+            <Text style={styles.infoValue}>
+              {formatarTelefone(dadosEmpresa?.telefone) || "Não informado"}
+            </Text>
           </View>
+          
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>E-mail</Text>
-            <Text style={styles.infoValue}>{company.email}</Text>
+            <Text style={styles.infoValue}>{dadosEmpresa?.email || "Não informado"}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Conta criada em</Text>
-            <Text style={styles.infoValue}>{company.createdAt}</Text>
-          </View>
+          
+          {dadosEmpresa?.createdAt && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Conta criada em</Text>
+              <Text style={styles.infoValue}>{formatarData(dadosEmpresa.createdAt)}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={[styles.actionButton, styles.logoutButton]} onPress={() => router.push('/(tabs)/empresaLogin')}>
+          <TouchableOpacity style={[styles.actionButton, styles.logoutButton]} onPress={handleSair}>
             <Ionicons name="log-out-outline" size={18} color="#2A7B63" />
             <Text style={styles.logoutButtonText}>Sair</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.deleteButton]}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteButton]}
+            onPress={() => Alert.alert("Aviso", "A exclusão de conta corporativa deve ser solicitada ao suporte.")}
+          >
             <Ionicons name="trash-outline" size={18} color="#D92F2F" />
             <Text style={styles.deleteButtonText}>Excluir conta</Text>
           </TouchableOpacity>
@@ -158,6 +238,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F3F6F5',
+  },
+  containerCentro: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textoCarregando: {
+    marginTop: 12,
+    color: "#7D8D86",
+    fontSize: 15,
   },
   content: {
     paddingBottom: 32,
@@ -193,12 +282,12 @@ const styles = StyleSheet.create({
     marginLeft: 18,
   },
   companyName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#fff',
   },
   companyRole: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 13,
     color: '#E2F1EE',
   },
@@ -218,7 +307,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   companyStatus: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 12,
     color: '#E2F1EE',
     fontWeight: '700',
@@ -301,16 +390,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 10,
   },
-  
-  
   cameraContainer: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 40,
   },
   botaoFecharCamera: {
     position: 'absolute',
@@ -319,12 +401,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     padding: 10,
     borderRadius: 30,
+    zIndex: 10,
   },
   containerBotoesCamera: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingHorizontal: 32,
+    zIndex: 10,
   },
   botaoCirculoSecundario: {
     width: 50,
