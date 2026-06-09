@@ -279,7 +279,7 @@ export default function ReceitasEmpresa() {
             resizeMode="contain"
           />
           <View style={styles.acaoHeader}>
-            <Ionicons name="notifications-outline" size={28} color="#fff" />
+           
             <Ionicons name="person-circle-outline" size={32} color="#fff" />
           </View>
         </View>

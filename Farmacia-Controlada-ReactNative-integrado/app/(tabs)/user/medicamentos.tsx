@@ -203,9 +203,7 @@ export default function MedicamentosUsuario() {
                 />
 
                 <View style={styles.acaoHeader}>
-                    <TouchableOpacity style={styles.buttonIcone} accessibilityLabel="Notificações">
-                        <Ionicons name="notifications-outline" size={28} color="#fff" />
-                    </TouchableOpacity>
+                    
 
                     <TouchableOpacity style={styles.buttonPerfil} onPress={() => router.push('/(tabs)/user/perfil')} accessibilityLabel="Perfil do usuário">
                         <Ionicons name="person-circle-outline" size={32} color="#fff" />

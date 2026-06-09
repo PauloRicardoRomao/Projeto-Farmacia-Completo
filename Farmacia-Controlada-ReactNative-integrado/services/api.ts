@@ -14,10 +14,10 @@ export type AuthData = {
 };
 
 const defaultApiUrl = Platform.select({
-  android: "http://192.168.10.127:3333/api",
-  ios: "http://192.168.10.127:3333/api",
-  web: "http://192.168.10.127:3333/api",
-  default: "http://192.168.10.127:3333/api",
+  android: "http://172.20.10.2:3333/api",
+  ios: "http://172.20.10.2:3333/api",
+  web: "http://172.20.10.2:3333/api",
+  default: "http://172.20.10.2:3333/api",
 });
 
 export const API_BASE_URL =

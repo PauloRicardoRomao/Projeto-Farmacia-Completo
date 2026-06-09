@@ -119,9 +119,7 @@ export default function HomeScreen() {
                             />
 
                             <View style={styles.acaoHeader}>
-                                <TouchableOpacity style={styles.buttonIcone} accessibilityLabel="Notificações">
-                                    <Ionicons name="notifications-outline" size={28} color="#fff" />
-                                </TouchableOpacity>
+                                
 
                                 <TouchableOpacity style={styles.buttonPerfil} accessibilityLabel="Perfil do usuário">
                                     <Ionicons name="person-circle-outline" size={32} color="#fff" />
