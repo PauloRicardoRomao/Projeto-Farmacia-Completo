@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View, TouchableOpacity, Image, Text, FlatList, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { StyleSheet, View, TouchableOpacity, Image, Text, FlatList, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api, obterAuth } from "../../../services/api";
@@ -45,6 +45,7 @@ export default function HomeScreen() {
     const [remedioSelecionado, setRemedioSelecionado] = useState<Remedio | null>(null);
     const [motivoRetirada, setMotivoRetirada] = useState('');
     const [dataRetirada, setDataRetirada] = useState(new Date().toLocaleDateString('pt-BR'));
+    const [quantidadeRetirada, setQuantidadeRetirada] = useState('1');
 
     const abrirDetalhes = (item: Remedio) => {
         setRemedioSelecionado(item);
@@ -63,32 +64,41 @@ export default function HomeScreen() {
     const confirmarRetirada = async () => {
         if (!remedioSelecionado) return;
 
-        const auth = await obterAuth();
-        const empresaId = auth?.empresa?.id;
+        const quantidade = Number(quantidadeRetirada);
 
-        if (empresaId && remedioSelecionado.medicamentoFormaFarmacoId) {
+        if (!Number.isFinite(quantidade) || quantidade <= 0) {
+            Alert.alert('Atenção', 'Informe uma quantidade válida.');
+            return;
+        }
+
+        try {
+            const auth = await obterAuth();
+            const empresaId = auth?.empresa?.id;
+
+            if (!empresaId || !remedioSelecionado.medicamentoFormaFarmacoId) {
+                Alert.alert('Atenção', 'Faça login novamente como empresa.');
+                return;
+            }
+
             await api.post('/estoque-medicamentos/movimentar', {
                 empresaId,
                 medicamentoFormaFarmacoId: remedioSelecionado.medicamentoFormaFarmacoId,
                 tipo: 'saida',
-                quantidade: 1,
+                quantidade,
                 observacao: motivoRetirada || 'Retirada manual pelo aplicativo.',
             });
+
+            await carregarEstoque();
+            Alert.alert('Sucesso', 'Retirada registrada no estoque.');
+            setModalRetiradaVisivel(false);
+            setModalDetalhesVisivel(false);
+            setRemedioSelecionado(null);
+            setMotivoRetirada('');
+            setQuantidadeRetirada('1');
+            setDataRetirada(new Date().toLocaleDateString('pt-BR'));
+        } catch (error) {
+            Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível registrar a retirada.');
         }
-
-        setRemedios((listaAtual) =>
-            listaAtual.map((item) =>
-                item.id === remedioSelecionado.id
-                    ? { ...item, quantity: Math.max(0, item.quantity - 1) }
-                    : item
-            )
-        );
-
-        setModalRetiradaVisivel(false);
-        setModalDetalhesVisivel(false);
-        setRemedioSelecionado(null);
-        setMotivoRetirada('');
-        setDataRetirada(new Date().toLocaleDateString('pt-BR'));
     };
 
     return (
@@ -229,11 +239,12 @@ export default function HomeScreen() {
 
                         <Text style={styles.rotuloModal}>Quantidade: </Text>
                         <TextInput
-                            value={motivoRetirada}
-                            onChangeText={setMotivoRetirada}
+                            value={quantidadeRetirada}
+                            onChangeText={setQuantidadeRetirada}
                             style={styles.campoInput}
                             placeholder="Quantidade a ser retirada"
                             placeholderTextColor="#9ca3af"
+                            keyboardType="numeric"
                         />
 
                         <Text style={styles.rotuloModal}>Data da retirada</Text>

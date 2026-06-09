@@ -32,10 +32,10 @@ interface MedicamentoApi {
 interface Medicamento {
     id: string;
     nome: string;
+    descricao: string;
     laboratorio: string;
     tipo: string;
-    farmaciasPróximas: number;
-    emEstoque: boolean;
+    forma: string;
     formaFarmacoId?: number;
 }
 
@@ -58,10 +58,13 @@ function mapMedicamento(item: MedicamentoApi): Medicamento {
     return {
         id: String(item.id),
         nome: item.nome,
-        laboratorio: item.tarjaMedicamento?.descricao ?? 'Catálogo global',
-        tipo: item.classeFarmacologica?.classe ?? 'Medicamento',
-        farmaciasPróximas: 0,
-        emEstoque: true,
+        descricao: item.descricao,
+        laboratorio:
+            item.tarjaMedicamento?.descricao ?? 'Não informado',
+        tipo:
+            item.classeFarmacologica?.classe ?? 'Medicamento',
+        forma:
+            primeiraForma?.formaFarmaco?.forma ?? 'Não informado',
         formaFarmacoId: primeiraForma?.id,
     };
 }
@@ -72,6 +75,7 @@ export default function MedicamentosUsuario() {
     const [filtroSelecionado, setFiltroSelecionado] = useState('todos');
     const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
     const [carregando, setCarregando] = useState(true);
+    const [totalMedicamentos, setTotalMedicamentos] = useState(0);
 
     useEffect(() => {
         carregarMedicamentos();
@@ -80,10 +84,20 @@ export default function MedicamentosUsuario() {
     const carregarMedicamentos = async () => {
         try {
             setCarregando(true);
+
             const resposta = await api.get<MedicamentoApi[]>('/medicamentos');
-            setMedicamentos(resposta.map(mapMedicamento));
+
+            const lista = resposta.map(mapMedicamento);
+
+            setMedicamentos(lista);
+            setTotalMedicamentos(lista.length);
         } catch (error) {
-            Alert.alert('Erro', error instanceof Error ? error.message : 'Não foi possível carregar medicamentos.');
+            Alert.alert(
+                'Erro',
+                error instanceof Error
+                    ? error.message
+                    : 'Não foi possível carregar medicamentos.'
+            );
         } finally {
             setCarregando(false);
         }
@@ -92,40 +106,88 @@ export default function MedicamentosUsuario() {
     const tiposUnicos = ['Todos', ...new Set(medicamentos.map(m => m.tipo))];
 
     const medicamentos_filtrados = medicamentos.filter(m => {
-        const matchBusca = m.nome.toLowerCase().includes(busca.toLowerCase()) ||
-            m.laboratorio.toLowerCase().includes(busca.toLowerCase());
-        const matchFiltro = filtroSelecionado === 'todos' || m.tipo === filtroSelecionado;
+        const matchBusca =
+            m.nome.toLowerCase().includes(busca.toLowerCase()) ||
+            m.descricao.toLowerCase().includes(busca.toLowerCase()) ||
+            m.tipo.toLowerCase().includes(busca.toLowerCase());
+
+        const matchFiltro =
+            filtroSelecionado === 'todos' ||
+            m.tipo === filtroSelecionado;
+
         return matchBusca && matchFiltro;
     });
 
     const renderMedicamento: ListRenderItem<Medicamento> = ({ item }) => (
         <TouchableOpacity
             style={styles.cartaoMedicamento}
-            onPress={() => router.push(`/(tabs)/user/detalhesMedicamento?id=${item.id}&formaFarmacoId=${item.formaFarmacoId ?? ''}`)}
+            onPress={() =>
+                router.push(
+                    `/(tabs)/user/detalhesMedicamento?id=${item.id}&formaFarmacoId=${item.formaFarmacoId ?? ''}`
+                )
+            }
         >
             <View style={styles.headerMedicamento}>
                 <View style={styles.grupoNome}>
-                    <Text style={styles.nomeMedicamento}>{item.nome}</Text>
-                    <Text style={styles.laboratorioMedicamento}>{item.laboratorio}</Text>
+                    <Text style={styles.nomeMedicamento}>
+                        {item.nome}
+                    </Text>
+
+                    <Text style={styles.laboratorioMedicamento}>
+                        {item.laboratorio}
+                    </Text>
                 </View>
             </View>
 
+            <Text
+                numberOfLines={2}
+                style={{
+                    color: '#6B7280',
+                    marginBottom: 10,
+                    fontSize: 12,
+                }}
+            >
+                {item.descricao}
+            </Text>
+
             <View style={styles.linhaSecundaria}>
                 <View style={styles.badgeTipo}>
-                    <Text style={styles.textoTipo}>{item.tipo}</Text>
+                    <Text style={styles.textoTipo}>
+                        {item.tipo}
+                    </Text>
                 </View>
-                {!item.emEstoque && (
-                    <View style={styles.badgeSemEstoque}>
-                        <MaterialCommunityIcons name="alert-circle-outline" size={12} color={cores.vermelhaDestruir} />
-                        <Text style={styles.textoSemEstoque}>Sem estoque</Text>
-                    </View>
-                )}
+
+                <View
+                    style={{
+                        backgroundColor: '#EEF2FF',
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 6,
+                    }}
+                >
+                    <Text
+                        style={{
+                            fontSize: 11,
+                            fontWeight: '600',
+                            color: '#4F46E5',
+                        }}
+                    >
+                        {item.forma}
+                    </Text>
+                </View>
             </View>
 
             <View style={styles.rodape}>
                 <View style={styles.grupFarmacia}>
-                    <MaterialCommunityIcons name="map-marker-outline" size={14} color={cores.primaria} />
-                    <Text style={styles.textoFarmacia}>Catálogo integrado</Text>
+                    <MaterialCommunityIcons
+                        name="pill"
+                        size={14}
+                        color={cores.primaria}
+                    />
+
+                    <Text style={styles.textoFarmacia}>
+                        Medicamento cadastrado
+                    </Text>
                 </View>
             </View>
         </TouchableOpacity>
@@ -133,7 +195,7 @@ export default function MedicamentosUsuario() {
 
     return (
         <View style={styles.containerPrincipal}>
-             <View style={styles.header}>
+            <View style={styles.header}>
                 <Image
                     source={require('../../../assets/LogoFarm.fw.png')}
                     style={styles.logo}
@@ -153,7 +215,9 @@ export default function MedicamentosUsuario() {
 
             <View style={styles.tituloSessao}>
                 <Text style={styles.tituloPrincipal}>Medicamentos</Text>
-                <Text style={styles.subTitulo}>Confira aqui os medicamentos disponíveis no catálogo</Text>
+                <Text style={styles.subTitulo}>
+                    {totalMedicamentos} medicamentos encontrados
+                </Text>
             </View>
 
             <View style={styles.containerBusca}>
@@ -208,12 +272,12 @@ export default function MedicamentosUsuario() {
             ) : medicamentos_filtrados.length > 0 ? (
                 <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
                     <FlatList
-                    data={medicamentos_filtrados}
-                    renderItem={renderMedicamento}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.listaContent}
-                    showsVerticalScrollIndicator={false}
-                />
+                        data={medicamentos_filtrados}
+                        renderItem={renderMedicamento}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.listaContent}
+                        showsVerticalScrollIndicator={false}
+                    />
                 </ScrollView>
             ) : (
                 <View style={styles.estadoVazio}>
@@ -305,14 +369,14 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: cores.borda,
         maxHeight: 60,
-        
+
     },
     contentFiltros: {
         paddingHorizontal: 16,
         paddingVertical: 12,
         gap: 8,
-        
-        
+
+
     },
     filtro: {
         paddingVertical: 7,
@@ -321,12 +385,12 @@ const styles = StyleSheet.create({
         backgroundColor: cores.fundoLeve,
         borderWidth: 1,
         borderColor: cores.borda,
-       
+
     },
     filtroSelecionado: {
         backgroundColor: cores.primaria,
         borderColor: cores.primaria,
-        
+
     },
     textoFiltro: {
         fontSize: 12,

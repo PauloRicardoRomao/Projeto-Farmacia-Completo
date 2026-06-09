@@ -10,6 +10,7 @@ import {
 
 import sequelize from "../config/config";
 import type Usuario from "./usuario.model";
+import type Empresa from "./empresa.model";
 import type ReceitaMedicamento from "./receita-medicamento.model";
 
 import type Imagem from "./imagem.model";
@@ -20,6 +21,8 @@ class ReceitaUsuario extends Model<
 > {
   declare id: CreationOptional<number>;
   declare usuarioId: ForeignKey<Usuario["id"]>;
+  declare empresaId: CreationOptional<ForeignKey<Empresa["id"]> | null>;
+  declare status: CreationOptional<"pendente" | "aprovada" | "rejeitada" | "dispensada">;
   declare crmMedico: CreationOptional<string | null>;
   declare dataEmissao: Date;
   declare dataVencimento: CreationOptional<Date | null>;
@@ -27,6 +30,7 @@ class ReceitaUsuario extends Model<
   declare ativo: CreationOptional<boolean>;
 
   declare usuario?: NonAttribute<Usuario>;
+  declare empresa?: NonAttribute<Empresa>;
   declare receitasMedicamentos?: NonAttribute<ReceitaMedicamento[]>;
   declare imagens?: NonAttribute<Imagem[]>;
 
@@ -51,6 +55,22 @@ ReceitaUsuario.init(
       },
       onUpdate: "CASCADE",
       onDelete: "RESTRICT",
+    },
+    empresaId: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      field: "empresa_id",
+      references: {
+        model: "empresa",
+        key: "id",
+      },
+      onUpdate: "CASCADE",
+      onDelete: "SET NULL",
+    },
+    status: {
+      type: DataTypes.ENUM("pendente", "aprovada", "rejeitada", "dispensada"),
+      allowNull: false,
+      defaultValue: "pendente",
     },
     crmMedico: {
       type: DataTypes.STRING(15),

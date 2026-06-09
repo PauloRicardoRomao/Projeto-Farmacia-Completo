@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter, Href } from 'expo-router';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { api, obterAuth } from '../../../services/api';
 
 const cores = {
     primaria: '#72CAA5',
@@ -35,12 +36,6 @@ interface card {
     rota: Href<any>;
 }
 
-interface dados {
-    nome: string;
-    receitas: number;
-    medicamentos: number;
-    farmaciasFavoritas: number;
-}
 
 interface AcaoRapida {
     id: string;
@@ -63,26 +58,43 @@ interface Atividade {
 export default function MenuUsuario() {
     const router = useRouter();
 
-    const dadosUsuario: dados = {
-        nome: 'João Silva',
-        receitas: 3,
-        medicamentos: 12,
-        farmaciasFavoritas: 2,
-    };
+    const [usuario, setUsuario] = useState<any>(null);
+    const [quantidadeMedicamentos, setQuantidadeMedicamentos] = useState(0);
+    const [carregando, setCarregando] = useState(true);
+
+    useEffect(() => {
+        carregarDados();
+    }, []);
+
+    async function carregarDados() {
+        try {
+            const auth = await obterAuth();
+
+            if (auth?.usuario) {
+                setUsuario(auth.usuario);
+            }
+
+            const medicamentos = await api.get<any[]>('/medicamentos');
+
+            setQuantidadeMedicamentos(medicamentos.length);
+        } catch (error) {
+            console.log('Erro ao carregar dados:', error);
+        } finally {
+            setCarregando(false);
+        }
+    }
 
     const cardPrincipais: card[] = [
         {
             id: '1',
             titulo: 'Medicamentos',
-            descricao: 'Disponíveis perto',
-            numero: dadosUsuario.medicamentos,
+            descricao: 'Disponíveis',
+            numero: quantidadeMedicamentos,
             icone: 'pill',
             cor: cores.primaria,
             rota: '/(tabs)/user/medicamentos',
         },
-        
     ];
-
     const acoesRapidas: AcaoRapida[] = [
         {
             id: '1',
@@ -91,7 +103,7 @@ export default function MenuUsuario() {
             icone: 'magnify',
             rota: '/(tabs)/user/medicamentos',
         },
-        
+
         {
             id: '2',
             label: 'Perfil',
@@ -100,7 +112,7 @@ export default function MenuUsuario() {
             rota: '/(tabs)/user/perfil',
         },
 
-         {
+        {
             id: '3',
             label: 'Doação',
             descricao: 'Realizar Doações',
@@ -189,6 +201,20 @@ export default function MenuUsuario() {
         </View>
     );
 
+    if (carregando) {
+    return (
+        <View
+            style={{
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+            }}
+        >
+            <Text>Carregando...</Text>
+        </View>
+    );
+}
+
     return (
         <ScrollView
             style={styles.containerPrincipal}
@@ -213,8 +239,34 @@ export default function MenuUsuario() {
             </View>
 
             <View style={styles.tituloSessao}>
-                <Text style={styles.tituloPrincipal}>Olá, {dadosUsuario.nome}</Text>
+                <Text style={styles.tituloPrincipal}>
+                    Olá, {usuario?.nome || 'Usuário'}
+                </Text>
                 <Text style={styles.subTitulo}>Seja Bem-Vindo ao menu inicial</Text>
+
+                {usuario?.email && (
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            color: '#666',
+                            marginTop: 5,
+                        }}
+                    >
+                        {usuario.email}
+                    </Text>
+                )}
+
+                {usuario?.cpf && (
+                    <Text
+                        style={{
+                            fontSize: 13,
+                            color: '#888',
+                            marginTop: 2,
+                        }}
+                    >
+                        CPF: {usuario.cpf}
+                    </Text>
+                )}
             </View>
 
             <View style={styles.secaoCartoes}>

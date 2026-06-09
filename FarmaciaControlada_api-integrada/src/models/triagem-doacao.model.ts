@@ -19,6 +19,7 @@ class TriagemDoacao extends Model<
   declare id: CreationOptional<number>;
   declare medicamentoDoacaoId: ForeignKey<MedicamentoDoacao["id"]>;
   declare validade: Date;
+  declare status: CreationOptional<"pendente" | "aprovada" | "reprovada">;
   declare aprovado: CreationOptional<boolean>;
   declare ativo: CreationOptional<boolean>;
 
@@ -50,6 +51,11 @@ TriagemDoacao.init(
     validade: {
       type: DataTypes.DATE,
       allowNull: false,
+    },
+    status: {
+      type: DataTypes.ENUM("pendente", "aprovada", "reprovada"),
+      allowNull: false,
+      defaultValue: "pendente",
     },
     aprovado: {
       type: DataTypes.BOOLEAN,

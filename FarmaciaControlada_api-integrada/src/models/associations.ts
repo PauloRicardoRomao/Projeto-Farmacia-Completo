@@ -74,6 +74,16 @@ export function registerAssociations() {
     as: "usuario",
   });
 
+  Empresa.hasMany(ReceitaUsuario, {
+    foreignKey: "empresaId",
+    as: "receitasUsuarios",
+  });
+
+  ReceitaUsuario.belongsTo(Empresa, {
+    foreignKey: "empresaId",
+    as: "empresa",
+  });
+
   ReceitaUsuario.hasMany(ReceitaMedicamento, {
     foreignKey: "receitaUsuarioId",
     as: "receitasMedicamentos",

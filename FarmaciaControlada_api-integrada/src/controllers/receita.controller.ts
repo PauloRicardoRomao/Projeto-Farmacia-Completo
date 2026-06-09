@@ -37,7 +37,7 @@ type UpdateReceitaBody = {
   medicamentos?: ReceitaMedicamentoInput[];
 };
 
-type DispensarReceitaBody = {
+type ReceitaEmpresaBody = {
   empresaId: number;
   observacao?: string | null;
 };
@@ -46,6 +46,14 @@ const receitaInclude: Includeable[] = [
   {
     model: Usuario,
     as: "usuario",
+    attributes: {
+      exclude: ["senhaHash"],
+    },
+  },
+  {
+    model: Empresa,
+    as: "empresa",
+    required: false,
     attributes: {
       exclude: ["senhaHash"],
     },
@@ -104,6 +112,34 @@ function validarData(valor: string) {
   }
 
   return data;
+}
+
+async function validarMedicamentosReceita(
+  medicamentos: ReceitaMedicamentoInput[],
+  transaction: Awaited<ReturnType<typeof sequelize.transaction>>,
+) {
+  for (const item of medicamentos) {
+    const medicamentoFormaFarmacoId = validarId(item.medicamentoFormaFarmacoId);
+    const quantidade = validarQuantidade(item.quantidade);
+
+    if (!medicamentoFormaFarmacoId || !quantidade) {
+      return "Cada medicamento precisa ter medicamentoFormaFarmacoId e quantidade válida.";
+    }
+
+    const medicamentoFormaFarmaco = await MedicamentoFormaFarmaco.findOne({
+      where: {
+        id: medicamentoFormaFarmacoId,
+        ativo: true,
+      },
+      transaction,
+    });
+
+    if (!medicamentoFormaFarmaco) {
+      return "Um ou mais medicamentos/formas farmacêuticas não foram encontrados.";
+    }
+  }
+
+  return null;
 }
 
 class ReceitaController {
@@ -176,43 +212,24 @@ class ReceitaController {
         });
       }
 
-      for (const item of medicamentos) {
-        const medicamentoFormaFarmacoId = validarId(
-          item.medicamentoFormaFarmacoId,
-        );
+      const erroMedicamentos = await validarMedicamentosReceita(
+        medicamentos,
+        transaction,
+      );
 
-        const quantidade = validarQuantidade(item.quantidade);
+      if (erroMedicamentos) {
+        await transaction.rollback();
 
-        if (!medicamentoFormaFarmacoId || !quantidade) {
-          await transaction.rollback();
-
-          return res.status(400).json({
-            message:
-              "Cada medicamento precisa ter medicamentoFormaFarmacoId e quantidade válida.",
-          });
-        }
-
-        const medicamentoFormaFarmaco = await MedicamentoFormaFarmaco.findOne({
-          where: {
-            id: medicamentoFormaFarmacoId,
-            ativo: true,
-          },
-          transaction,
+        return res.status(400).json({
+          message: erroMedicamentos,
         });
-
-        if (!medicamentoFormaFarmaco) {
-          await transaction.rollback();
-
-          return res.status(404).json({
-            message:
-              "Um ou mais medicamentos/formas farmacêuticas não foram encontrados.",
-          });
-        }
       }
 
       const receita = await ReceitaUsuario.create(
         {
           usuarioId: usuarioIdNumber,
+          empresaId: null,
+          status: "pendente",
           crmMedico: crmMedico ?? null,
           dataEmissao: dataEmissaoDate,
           dataVencimento: dataVencimentoDate,
@@ -243,7 +260,7 @@ class ReceitaController {
       await transaction.commit();
 
       return res.status(201).json({
-        message: "Receita cadastrada com sucesso.",
+        message: "Receita cadastrada e enviada para triagem.",
         receita: receitaCriada,
       });
     } catch (error) {
@@ -349,6 +366,14 @@ class ReceitaController {
         });
       }
 
+      if (receita.status !== "pendente") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          message: "Somente receitas pendentes podem ser editadas.",
+        });
+      }
+
       let dataEmissaoDate: Date | undefined;
 
       if (dataEmissao) {
@@ -413,40 +438,17 @@ class ReceitaController {
           });
         }
 
-        for (const item of medicamentos) {
-          const medicamentoFormaFarmacoId = validarId(
-            item.medicamentoFormaFarmacoId,
-          );
+        const erroMedicamentos = await validarMedicamentosReceita(
+          medicamentos,
+          transaction,
+        );
 
-          const quantidade = validarQuantidade(item.quantidade);
+        if (erroMedicamentos) {
+          await transaction.rollback();
 
-          if (!medicamentoFormaFarmacoId || !quantidade) {
-            await transaction.rollback();
-
-            return res.status(400).json({
-              message:
-                "Cada medicamento precisa ter medicamentoFormaFarmacoId e quantidade válida.",
-            });
-          }
-
-          const medicamentoFormaFarmaco = await MedicamentoFormaFarmaco.findOne(
-            {
-              where: {
-                id: medicamentoFormaFarmacoId,
-                ativo: true,
-              },
-              transaction,
-            },
-          );
-
-          if (!medicamentoFormaFarmaco) {
-            await transaction.rollback();
-
-            return res.status(404).json({
-              message:
-                "Um ou mais medicamentos/formas farmacêuticas não foram encontrados.",
-            });
-          }
+          return res.status(400).json({
+            message: erroMedicamentos,
+          });
         }
 
         await ReceitaMedicamento.update(
@@ -496,8 +498,191 @@ class ReceitaController {
     }
   }
 
+  async aprovar(
+    req: Request<{ id: string }, {}, ReceitaEmpresaBody>,
+    res: Response,
+  ) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const receitaId = validarId(req.params.id);
+      const empresaId = validarId(req.body.empresaId);
+
+      if (!receitaId || !empresaId) {
+        await transaction.rollback();
+
+        return res.status(400).json({
+          message: "Receita e empresa são obrigatórias.",
+        });
+      }
+
+      const empresa = await Empresa.findOne({
+        where: {
+          id: empresaId,
+          ativo: true,
+        },
+        transaction,
+      });
+
+      if (!empresa) {
+        await transaction.rollback();
+
+        return res.status(404).json({
+          message: "Empresa não encontrada.",
+        });
+      }
+
+      const receita = await ReceitaUsuario.findOne({
+        where: {
+          id: receitaId,
+          ativo: true,
+        },
+        include: [
+          {
+            model: ReceitaMedicamento,
+            as: "receitasMedicamentos",
+            required: true,
+            where: {
+              ativo: true,
+            },
+          },
+        ],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!receita) {
+        await transaction.rollback();
+
+        return res.status(404).json({
+          message: "Receita não encontrada.",
+        });
+      }
+
+      if (receita.status !== "pendente") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          message: "Somente receitas pendentes podem ser aprovadas.",
+        });
+      }
+
+      if (
+        receita.dataVencimento &&
+        new Date(receita.dataVencimento).getTime() < Date.now()
+      ) {
+        await transaction.rollback();
+
+        return res.status(400).json({
+          message: "Receita vencida.",
+        });
+      }
+
+      await receita.update(
+        {
+          empresaId,
+          status: "aprovada",
+          observacao: req.body.observacao ?? receita.observacao,
+        },
+        { transaction },
+      );
+
+      const receitaAtualizada = await ReceitaUsuario.findByPk(receita.id, {
+        include: receitaInclude,
+        transaction,
+      });
+
+      await transaction.commit();
+
+      return res.status(200).json({
+        message: "Receita aprovada e autorizada para retirada.",
+        receita: receitaAtualizada,
+      });
+    } catch (error) {
+      await transaction.rollback();
+
+      return res.status(500).json({
+        message: "Erro ao aprovar receita.",
+        error,
+      });
+    }
+  }
+
+  async reprovar(
+    req: Request<{ id: string }, {}, ReceitaEmpresaBody>,
+    res: Response,
+  ) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const receitaId = validarId(req.params.id);
+      const empresaId = validarId(req.body.empresaId);
+
+      if (!receitaId || !empresaId) {
+        await transaction.rollback();
+
+        return res.status(400).json({
+          message: "Receita e empresa são obrigatórias.",
+        });
+      }
+
+      const receita = await ReceitaUsuario.findOne({
+        where: {
+          id: receitaId,
+          ativo: true,
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!receita) {
+        await transaction.rollback();
+
+        return res.status(404).json({
+          message: "Receita não encontrada.",
+        });
+      }
+
+      if (receita.status !== "pendente") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          message: "Somente receitas pendentes podem ser reprovadas.",
+        });
+      }
+
+      await receita.update(
+        {
+          empresaId,
+          status: "rejeitada",
+          observacao: req.body.observacao ?? receita.observacao,
+        },
+        { transaction },
+      );
+
+      const receitaAtualizada = await ReceitaUsuario.findByPk(receita.id, {
+        include: receitaInclude,
+        transaction,
+      });
+
+      await transaction.commit();
+
+      return res.status(200).json({
+        message: "Receita reprovada.",
+        receita: receitaAtualizada,
+      });
+    } catch (error) {
+      await transaction.rollback();
+
+      return res.status(500).json({
+        message: "Erro ao reprovar receita.",
+        error,
+      });
+    }
+  }
+
   async dispensar(
-    req: Request<{ id: string }, {}, DispensarReceitaBody>,
+    req: Request<{ id: string }, {}, ReceitaEmpresaBody>,
     res: Response,
   ) {
     const transaction = await sequelize.transaction();
@@ -565,6 +750,14 @@ class ReceitaController {
 
         return res.status(404).json({
           message: "Receita não encontrada.",
+        });
+      }
+
+      if (receita.status !== "aprovada") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          message: "A receita precisa estar aprovada antes da retirada.",
         });
       }
 
@@ -664,6 +857,14 @@ class ReceitaController {
         );
       }
 
+      await receita.update(
+        {
+          empresaId,
+          status: "dispensada",
+        },
+        { transaction },
+      );
+
       const receitaAtualizada = await ReceitaUsuario.findByPk(receita.id, {
         include: receitaInclude,
         transaction,
@@ -672,7 +873,7 @@ class ReceitaController {
       await transaction.commit();
 
       return res.status(200).json({
-        message: "Receita dispensada com sucesso.",
+        message: "Medicamento retirado e estoque baixado com sucesso.",
         receita: receitaAtualizada,
       });
     } catch (error) {

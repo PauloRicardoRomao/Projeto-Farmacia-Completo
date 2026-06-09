@@ -55,29 +55,30 @@ export default function TelaDoacao() {
     const cameraRef = useRef<any>(null);
 
     const handleAbrirCamera = async () => {
-    if (!permissao?.granted) {
-        const resposta = await setPermissao();
+        if (!permissao?.granted) {
+            const resposta = await setPermissao();
 
-        if (resposta.granted) {
+            if (resposta.granted) {
+                setCameraAtiva(true);
+            }
+        } else {
             setCameraAtiva(true);
         }
-    } else {
-        setCameraAtiva(true);
-    }
     };
 
     const tirarFoto = async () => {
-        if(cameraRef.current) {
-            try{
+        if (cameraRef.current) {
+            try {
                 const foto = await cameraRef.current.takePictureAsync()
-                if(foto && foto.uri){
+                if (foto && foto.uri) {
                     setCameraAtiva(false)
                     setDoacao(foto.uri)
                 }
             } catch (error) {
-            alert(error)
+                alert(error)
+            }
         }
-    }}
+    }
 
     const limparFormulario = () => {
         setDadosMedicamento({
@@ -97,81 +98,124 @@ export default function TelaDoacao() {
 
     const confirmarDoacao = async () => {
         if (!dadosMedicamento.nome.trim()) {
-            Alert.alert('Atenção', 'Por favor, insira o nome do medicamento');
+            Alert.alert(
+                'Atenção',
+                'Informe o nome do medicamento'
+            );
             return;
         }
 
         if (!dadosMedicamento.quantidade.trim()) {
-            Alert.alert('Atenção', 'Por favor, insira a quantidade');
+            Alert.alert(
+                'Atenção',
+                'Informe a quantidade'
+            );
             return;
         }
 
-        setCarregando(true);
+        if (!dadosMedicamento.dataValidade.trim()) {
+            Alert.alert(
+                'Atenção',
+                'Informe a data de validade'
+            );
+            return;
+        }
+
         try {
+            setCarregando(true);
+
             const auth = await obterAuth();
+
             const cpf = auth?.usuario?.cpf;
 
             if (!cpf) {
-                Alert.alert('Atenção', 'Faça login novamente para registrar uma doação.');
+                Alert.alert(
+                    'Erro',
+                    'CPF do usuário não encontrado.'
+                );
                 return;
             }
 
-            const medicamentos = await api.get<any[]>(`/medicamentos?nome=${encodeURIComponent(dadosMedicamento.nome)}`);
-            const medicamentoFormaFarmacoId = medicamentos?.[0]?.medicamentoFormaFarmacos?.[0]?.id;
-
-            if (!medicamentoFormaFarmacoId) {
-                Alert.alert('Atenção', 'Medicamento não encontrado no catálogo. Cadastre-o antes de registrar a doação.');
-                return;
-            }
-
-            await api.post('/doacoes', {
+            const payload = {
                 cpf,
                 itens: [
                     {
-                        medicamentoFormaFarmacoId,
-                        quantidade: Number(dadosMedicamento.quantidade),
-                        validade: dadosMedicamento.dataValidade,
+                        nomeMedicamento:
+                            dadosMedicamento.nome,
+
+                        descricaoMedicamento:
+                            dadosMedicamento.descricao,
+
+                        quantidade: Number(
+                            dadosMedicamento.quantidade
+                        ),
+
+                        validade:
+                            dadosMedicamento.dataValidade,
                     },
                 ],
-            });
+            };
 
-            Alert.alert('Sucesso', 'Doação registrada com sucesso!');
-            fecharModal();
-        } catch (erro) {
-            Alert.alert('Erro', erro instanceof Error ? erro.message : 'Não foi possível realizar a doação');
+            console.log(
+                'Payload enviado:',
+                JSON.stringify(payload, null, 2)
+            );
+
+            await api.post('/doacoes', payload);
+
+            Alert.alert(
+                'Sucesso',
+                'Doação cadastrada com sucesso!'
+            );
+
+            limparFormulario();
+            setDoacao(null);
+            setModalVisivel(false);
+        } catch (error: any) {
+            console.log(
+                'Erro:',
+                error?.response?.data
+            );
+
+            Alert.alert(
+                'Erro',
+                error?.response?.data?.message ||
+                'Erro ao cadastrar doação.'
+            );
         } finally {
             setCarregando(false);
         }
     };
 
-    if(cameraAtiva) {
+    
+    if (cameraAtiva) {
         return (
-        <View style={styles.cameraContainer}>
-                <CameraView 
-                  style={styles.camera} 
-                  facing={ladoCamera} 
-                  ref={cameraRef}
+            <View style={styles.cameraContainer}>
+                <CameraView
+                    style={styles.camera}
+                    facing={ladoCamera}
+                    ref={cameraRef}
                 >
-                  <TouchableOpacity style={styles.botaoFecharCamera} onPress={() => setCameraAtiva(false)}>
-                    <Ionicons name="close" size={28} color="#fff" />
-                  </TouchableOpacity>
-        
-                  <View style={styles.containerBotoesCamera}>
-                    <TouchableOpacity 
-                      style={styles.botaoCirculoSecundario} 
-                      onPress={() => setLadoCamera(lado => (lado === 'back' ? 'front' : 'back'))}
-                    >
-                      <Ionicons name="camera-reverse-outline" size={24} color="#FFF" />
+                    <TouchableOpacity style={styles.botaoFecharCamera} onPress={() => setCameraAtiva(false)}>
+                        <Ionicons name="close" size={28} color="#fff" />
                     </TouchableOpacity>
-        
-                    <TouchableOpacity style={styles.botaoDisparador} onPress={tirarFoto}>
-                      <View style={styles.circuloInternoDisparador} />
-                    </TouchableOpacity>
-        
-                    <View style={{ width: 50 }} />
-                  </View>
+
+                    <View style={styles.containerBotoesCamera}>
+                        <TouchableOpacity
+                            style={styles.botaoCirculoSecundario}
+                            onPress={() => setLadoCamera(lado => (lado === 'back' ? 'front' : 'back'))}
+                        >
+                            <Ionicons name="camera-reverse-outline" size={24} color="#FFF" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.botaoDisparador} onPress={tirarFoto}>
+                            <View style={styles.circuloInternoDisparador} />
+                        </TouchableOpacity>
+
+                        <View style={{ width: 50 }} />
+                    </View>
                 </CameraView>
-        </View>
+            </View>
         )
     }
 
@@ -252,7 +296,7 @@ export default function TelaDoacao() {
                 </View>
             </ScrollView>
 
-            
+
             <Modal
                 visible={modalVisivel}
                 transparent={true}
@@ -269,34 +313,34 @@ export default function TelaDoacao() {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false} style={styles.conteudoModal}>
-                            
+
                             <View style={styles.secaoFoto}>
                                 <TouchableOpacity
                                     style={styles.areaFoto}
                                     onPress={handleAbrirCamera}
                                 >
-                                {doacao ?(
-                                    <View style={styles.placeholderFoto}>
+                                    {doacao ? (
+                                        <View style={styles.placeholderFoto}>
                                             <Image
-                                            source={doacao ? {uri: doacao}: require('../../../assets/LogoFarm.fw.png')}
-                                            resizeMode="cover"
-                                            style={styles.imagemDoacao}
+                                                source={doacao ? { uri: doacao } : require('../../../assets/LogoFarm.fw.png')}
+                                                resizeMode="cover"
+                                                style={styles.imagemDoacao}
                                             />
                                         </View>
-                                ) : (
-                                    <View style={styles.placeholderFoto}>
+                                    ) : (
+                                        <View style={styles.placeholderFoto}>
                                             <MaterialCommunityIcons name="camera-plus" size={48} color={cores.primaria} />
                                             <Text style={styles.textoFoto}>Adicionar Foto</Text>
                                         </View>
-                                )
-                                
-                                }
-                                        
-                                    
+                                    )
+
+                                    }
+
+
                                 </TouchableOpacity>
                             </View>
 
-                            
+
                             <View style={styles.grupoInput}>
                                 <Text style={styles.labelInput}>Nome do Medicamento *</Text>
                                 <TextInput
@@ -308,7 +352,7 @@ export default function TelaDoacao() {
                                 />
                             </View>
 
-                            
+
                             <View style={styles.grupoInput}>
                                 <Text style={styles.labelInput}>Descrição / Observações</Text>
                                 <TextInput
@@ -322,19 +366,24 @@ export default function TelaDoacao() {
                                 />
                             </View>
 
-                           
+
                             <View style={styles.grupoInput}>
                                 <Text style={styles.labelInput}>Quantidade *</Text>
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Ex: 10 unidades"
-                                    placeholderTextColor={cores.textoSecundario}
+                                    placeholder="10"
+                                    keyboardType="numeric"
                                     value={dadosMedicamento.quantidade}
-                                    onChangeText={(texto) => setDadosMedicamento({ ...dadosMedicamento, quantidade: texto })}
+                                    onChangeText={(texto) =>
+                                        setDadosMedicamento({
+                                            ...dadosMedicamento,
+                                            quantidade: texto,
+                                        })
+                                    }
                                 />
                             </View>
 
-                         
+
                             <View style={styles.grupoInput}>
                                 <Text style={styles.labelInput}>Data de Validade</Text>
                                 <TextInput
@@ -349,7 +398,7 @@ export default function TelaDoacao() {
                             <View style={styles.espacoRodape} />
                         </ScrollView>
 
-                        
+
                         <View style={styles.rodapeModal}>
                             <TouchableOpacity
                                 style={styles.botaoVoltar}
@@ -529,7 +578,7 @@ const styles = StyleSheet.create({
         color: cores.textoSecundario,
         marginTop: 4,
     },
-    
+
 
     fundoModal: {
         flex: 1,
@@ -658,54 +707,54 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     cameraContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 40,
-  },
-  botaoFecharCamera: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    padding: 10,
-    borderRadius: 30,
-  },
-  containerBotoesCamera: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  botaoCirculoSecundario: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  botaoDisparador: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 4,
-    borderColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  circuloInternoDisparador: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: '#FFF',
-  },
-  imagemDoacao: {
-    width: 250,
-    height: 250,
-    borderRadius: 45
-  }
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    camera: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        paddingBottom: 40,
+    },
+    botaoFecharCamera: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        padding: 10,
+        borderRadius: 30,
+    },
+    containerBotoesCamera: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        paddingHorizontal: 32,
+    },
+    botaoCirculoSecundario: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    botaoDisparador: {
+        width: 76,
+        height: 76,
+        borderRadius: 38,
+        borderWidth: 4,
+        borderColor: '#FFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    circuloInternoDisparador: {
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        backgroundColor: '#FFF',
+    },
+    imagemDoacao: {
+        width: 250,
+        height: 250,
+        borderRadius: 45
+    }
 });

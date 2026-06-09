@@ -127,7 +127,7 @@ class AuthController {
     } catch (error) {
       return res.status(500).json({
         message: "Erro ao realizar login do usuário.",
-        error,
+        console: console.log(error)
       });
     }
   }

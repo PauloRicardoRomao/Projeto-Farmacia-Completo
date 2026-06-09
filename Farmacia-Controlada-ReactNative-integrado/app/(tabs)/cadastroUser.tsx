@@ -6,14 +6,15 @@ import { api } from "../../services/api";
 
 export default function CadastroUsuarioScreen() {
   const [nome, setNome] = useState("");
-  const [login, setLogin] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf,setCpf] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
 
   const criarConta = async () => {
-    if (!login.trim() || !senha) {
-      Alert.alert("Atenção", "Informe CPF/e-mail e senha.");
+    if (!email.trim() || !senha || !cpf) {
+      Alert.alert("Atenção", "Informe CPF, e-mail e senha.");
       return;
     }
 
@@ -22,8 +23,8 @@ export default function CadastroUsuarioScreen() {
       return;
     }
 
-    const loginTratado = login.trim();
-    const ehEmail = loginTratado.includes("@");
+    const EmailTratado = email.trim();
+    const CpfTratado = cpf.trim();
 
     try {
       setCarregando(true);
@@ -31,8 +32,8 @@ export default function CadastroUsuarioScreen() {
         "/usuarios",
         {
           nome: nome.trim() || null,
-          email: ehEmail ? loginTratado : null,
-          cpf: ehEmail ? null : loginTratado,
+          email: EmailTratado || null,
+          cpf: CpfTratado || null,
           senha,
         },
         { auth: false },
@@ -80,15 +81,28 @@ export default function CadastroUsuarioScreen() {
         </View>
 
         <View style={styles.cardForm}>
-          <Text style={styles.label}>CPF ou e-mail</Text>
+          <Text style={styles.label}>E-mail</Text>
           <TextInput
             style={styles.input}
             placeholder="Digite seu CPF ou e-mail"
             placeholderTextColor="rgba(0, 0, 0, 0.4)"
             keyboardType="email-address"
             autoCapitalize="none"
-            value={login}
-            onChangeText={setLogin}
+            value={email}
+            onChangeText={setEmail}
+          />
+        </View>
+
+        <View style={styles.cardForm}>
+          <Text style={styles.label}>CPF</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Digite seu CPF ou e-mail"
+            placeholderTextColor="rgba(0, 0, 0, 0.4)"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={cpf}
+            onChangeText={setCpf}
           />
         </View>
 

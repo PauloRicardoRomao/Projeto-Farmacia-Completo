@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from "react";
+import { api,obterAuth} from "../../../services/api";
 import {
   View,
   Text,
@@ -34,18 +35,32 @@ export default function PerfilUsuario() {
   const [permissao, pedirPermissao] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
 
-  const dadosUsuario = {
-    nome: 'João Silva Santos',
-    email: 'joao.silva@email.com',
-    cpf: '123.456.789-00',
-    telefone: '(11) 99999-9999',
-    dataNascimento: '15/05/1990',
-    endereco: 'Rua das Flores, 123',
-    cidade: 'São Paulo',
-    estado: 'SP',
-    dataCadastro: '10/01/2025',
-    status: 'Ativo',
-  };
+  const [dadosUsuario, setDadosUsuario] = useState<any>(null);
+  const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+  carregarUsuario();
+}, []);
+
+const carregarUsuario = async () => {
+  try {
+    setCarregando(true);
+
+    const auth = await obterAuth();
+
+    console.log("AUTH COMPLETO:");
+console.log(JSON.stringify(auth, null, 2));
+
+    if(auth?.usuario){
+      setDadosUsuario(auth.usuario)
+    }
+  } catch (error) {
+    console.log("Erro ao carregar usuário:", error);
+  } finally {
+    setCarregando(false);
+  }
+};
+
 
   const handleAbrirCamera = async () => {
     if (!permissao?.granted) {
@@ -76,11 +91,20 @@ export default function PerfilUsuario() {
   };
 
   const handleSair = () => {
-    Alert.alert('Sair da Conta', 'Tem certeza que deseja sair?', [
-      { text: 'Não', style: 'cancel' },
-      { text: 'Sim', onPress: () => router.push('/'), style: 'destructive' },
-    ]);
-  };
+  Alert.alert("Sair", "Deseja realmente sair?", [
+    {
+      text: "Cancelar",
+      style: "cancel",
+    },
+    {
+      text: "Sair",
+      style: "destructive",
+      onPress: async () => {
+        router.replace("/");
+      },
+    },
+  ]);
+};
 
   const handleExcluirConta = () => {
     Alert.alert(
@@ -100,6 +124,20 @@ export default function PerfilUsuario() {
       ]
     );
   };
+
+  if (carregando) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text>Carregando...</Text>
+    </View>
+  );
+}
 
   if (cameraAtiva) {
     return (
@@ -131,6 +169,20 @@ export default function PerfilUsuario() {
       </View>
     );
   }
+
+  if (!dadosUsuario) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text>Nenhum usuário encontrado</Text>
+    </View>
+  );
+}
 
   return (
     <ScrollView style={styles.containerPrincipal} showsVerticalScrollIndicator={false}>
@@ -174,7 +226,7 @@ export default function PerfilUsuario() {
           </View>
           <View style={styles.grupoInfo}>
             <Text style={styles.labelInfo}>Telefone</Text>
-            <Text style={styles.valorInfo}>{dadosUsuario.telefone}</Text>
+            <Text style={styles.valorInfo}>{dadosUsuario.telefone }</Text>
           </View>
         </View>
 
@@ -185,7 +237,7 @@ export default function PerfilUsuario() {
           </View>
           <View style={styles.grupoInfo}>
             <Text style={styles.labelInfo}>Nascimento</Text>
-            <Text style={styles.valorInfo}>{dadosUsuario.dataNascimento}</Text>
+            <Text style={styles.valorInfo}>{dadosUsuario.dataNascimento }</Text>
           </View>
         </View>
 

@@ -13,7 +13,9 @@ import Medicamento from "../models/medicamento.model";
 import FormaFarmacoMedicamento from "../models/forma-farmaco-medicamento.model";
 
 type ItemDoacaoInput = {
-  medicamentoFormaFarmacoId: number;
+  medicamentoFormaFarmacoId?: number;
+  nomeMedicamento: string;
+  descricaoMedicamento?: string;
   quantidade: number;
   validade: string;
 };
@@ -82,6 +84,44 @@ function validarQuantidade(valor: unknown) {
   return numero;
 }
 
+function validarDataValidade(valor: string) {
+  const texto = valor.trim();
+  const mesAno = texto.match(/^(\d{2})\/(\d{4})$/);
+  const diaMesAno = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (mesAno) {
+    const mes = Number(mesAno[1]);
+    const ano = Number(mesAno[2]);
+
+    if (mes >= 1 && mes <= 12) {
+      return new Date(ano, mes, 0, 23, 59, 59);
+    }
+  }
+
+  if (diaMesAno) {
+    const dia = Number(diaMesAno[1]);
+    const mes = Number(diaMesAno[2]);
+    const ano = Number(diaMesAno[3]);
+    const data = new Date(ano, mes - 1, dia);
+
+    if (
+      data.getFullYear() === ano &&
+      data.getMonth() === mes - 1 &&
+      data.getDate() === dia
+    ) {
+      return data;
+    }
+  }
+
+  const data = new Date(texto);
+
+  if (Number.isNaN(data.getTime())) {
+    return null;
+  }
+
+  return data;
+}
+
 class DoacaoController {
   async create(req: Request<{}, {}, CreateDoacaoBody>, res: Response) {
     const transaction = await sequelize.transaction();
@@ -116,35 +156,20 @@ class DoacaoController {
       }
 
       for (const item of itens) {
-        const medicamentoFormaFarmacoId = validarId(
-          item.medicamentoFormaFarmacoId,
-        );
-
         const quantidade = validarQuantidade(item.quantidade);
 
-        if (!medicamentoFormaFarmacoId || !quantidade || !item.validade) {
+        const validade = item.validade ? validarDataValidade(item.validade) : null;
+
+        if (
+          !item.nomeMedicamento ||
+          !quantidade ||
+          !validade
+        ) {
           await transaction.rollback();
 
           return res.status(400).json({
             message:
-              "Cada item precisa ter medicamentoFormaFarmacoId, quantidade e validade.",
-          });
-        }
-
-        const medicamentoFormaFarmaco = await MedicamentoFormaFarmaco.findOne({
-          where: {
-            id: medicamentoFormaFarmacoId,
-            ativo: true,
-          },
-          transaction,
-        });
-
-        if (!medicamentoFormaFarmaco) {
-          await transaction.rollback();
-
-          return res.status(404).json({
-            message:
-              "Um ou mais medicamentos/formas farmacêuticas não foram encontrados.",
+              "Nome do medicamento, quantidade e validade válida são obrigatórios.",
           });
         }
       }
@@ -158,30 +183,20 @@ class DoacaoController {
       );
 
       for (const item of itens) {
-        const medicamentoFormaFarmacoId = Number(
-          item.medicamentoFormaFarmacoId,
-        );
-
-        const medicamentoFormaFarmaco = await MedicamentoFormaFarmaco.findByPk(
-          medicamentoFormaFarmacoId,
-          {
-            transaction,
-          },
-        );
-
-        if (!medicamentoFormaFarmaco) {
-          await transaction.rollback();
-
-          return res.status(404).json({
-            message: "Medicamento/forma farmacêutica não encontrado.",
-          });
-        }
-
         const medicamentoDoacao = await MedicamentoDoacao.create(
           {
             doacaoId: doacao.id,
-            medicamentoFormaFarmacoId,
+
+            medicamentoFormaFarmacoId:
+              item.medicamentoFormaFarmacoId || null,
+
+            nomeMedicamento: item.nomeMedicamento,
+
+            descricaoMedicamento:
+              item.descricaoMedicamento || null,
+
             quantidade: Number(item.quantidade),
+
             ativo: true,
           },
           { transaction },
@@ -190,7 +205,8 @@ class DoacaoController {
         await TriagemDoacao.create(
           {
             medicamentoDoacaoId: medicamentoDoacao.id,
-            validade: new Date(item.validade),
+            validade: validarDataValidade(item.validade)!,
+            status: "pendente",
             aprovado: false,
             ativo: true,
           },
@@ -330,11 +346,19 @@ class DoacaoController {
         });
       }
 
-      if (triagem.aprovado) {
+      if (triagem.status === "aprovada" || triagem.aprovado) {
         await transaction.rollback();
 
         return res.status(409).json({
           message: "Esta triagem já foi aprovada.",
+        });
+      }
+
+      if (triagem.status === "reprovada") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          message: "Esta triagem já foi reprovada.",
         });
       }
 
@@ -348,17 +372,59 @@ class DoacaoController {
         });
       }
 
-      const medicamentoFormaFarmacoId =
+      let medicamentoFormaFarmacoId =
         medicamentoDoacao.medicamentoFormaFarmacoId;
 
       const quantidade = Number(medicamentoDoacao.quantidade);
+
+      if (!medicamentoFormaFarmacoId) {
+        const nomeDoacao = medicamentoDoacao.nomeMedicamento.trim().toLowerCase();
+        const medicamentosCatalogo = await Medicamento.findAll({
+          where: {
+            ativo: true,
+          },
+          include: [
+            {
+              model: MedicamentoFormaFarmaco,
+              as: "medicamentoFormaFarmacos",
+              required: false,
+              where: {
+                ativo: true,
+              },
+            },
+          ],
+          transaction,
+        });
+
+        const medicamentoCatalogo = medicamentosCatalogo.find((medicamento) => {
+          const nomeCatalogo = medicamento.nome.trim().toLowerCase();
+
+          return (
+            nomeCatalogo === nomeDoacao ||
+            nomeDoacao.includes(nomeCatalogo) ||
+            nomeCatalogo.includes(nomeDoacao)
+          );
+        });
+
+        medicamentoFormaFarmacoId =
+          medicamentoCatalogo?.medicamentoFormaFarmacos?.[0]?.id ?? null;
+
+        if (medicamentoFormaFarmacoId) {
+          await medicamentoDoacao.update(
+            {
+              medicamentoFormaFarmacoId,
+            },
+            { transaction },
+          );
+        }
+      }
 
       if (!medicamentoFormaFarmacoId || quantidade <= 0) {
         await transaction.rollback();
 
         return res.status(400).json({
           message:
-            "Medicamento da doação está sem medicamentoFormaFarmacoId ou quantidade.",
+            "Medicamento da doação não foi encontrado no catálogo. Cadastre o medicamento ou selecione uma forma farmacêutica antes de aprovar.",
         });
       }
 
@@ -409,7 +475,9 @@ class DoacaoController {
 
       await triagem.update(
         {
+          status: "aprovada",
           aprovado: true,
+          ativo: true,
         },
         { transaction },
       );
@@ -468,7 +536,7 @@ class DoacaoController {
         });
       }
 
-      if (triagem.aprovado) {
+      if (triagem.status === "aprovada" || triagem.aprovado) {
         await transaction.rollback();
 
         return res.status(409).json({
@@ -476,9 +544,19 @@ class DoacaoController {
         });
       }
 
+      if (triagem.status === "reprovada") {
+        await transaction.rollback();
+
+        return res.status(409).json({
+          message: "Esta triagem já foi reprovada.",
+        });
+      }
+
       await triagem.update(
         {
-          ativo: false,
+          status: "reprovada",
+          aprovado: false,
+          ativo: true,
         },
         { transaction },
       );

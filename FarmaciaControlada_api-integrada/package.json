@@ -7,7 +7,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "db:sync": "tsx src/config/sync.ts"
+    "db:sync": "tsx src/config/sync.ts",
+    "db:seed": "tsx src/config/seed.ts",
+    "db:reset": "tsx src/config/seed.ts --reset"
   },
   "keywords": [],
   "author": "",

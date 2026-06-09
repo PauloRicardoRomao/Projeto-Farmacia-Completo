@@ -19,7 +19,8 @@ class MedicamentoDoacao extends Model<
 > {
   declare id: CreationOptional<number>;
   declare doacaoId: ForeignKey<Doacao["id"]>;
-  declare medicamentoFormaFarmacoId: ForeignKey<MedicamentoFormaFarmaco["id"]>;
+  declare medicamentoFormaFarmacoId:
+  ForeignKey<MedicamentoFormaFarmaco["id"]> | null;
   declare quantidade: number;
   declare ativo: CreationOptional<boolean>;
 
@@ -29,6 +30,8 @@ class MedicamentoDoacao extends Model<
 
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
+  declare nomeMedicamento: string;
+  declare descricaoMedicamento: string | null;
 }
 
 MedicamentoDoacao.init(
@@ -37,6 +40,17 @@ MedicamentoDoacao.init(
       type: DataTypes.INTEGER.UNSIGNED,
       primaryKey: true,
       autoIncrement: true,
+    },
+    nomeMedicamento: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      field: "nome_medicamento",
+    },
+
+    descricaoMedicamento: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: "descricao_medicamento",
     },
     doacaoId: {
       type: DataTypes.INTEGER.UNSIGNED,
@@ -51,7 +65,7 @@ MedicamentoDoacao.init(
     },
     medicamentoFormaFarmacoId: {
       type: DataTypes.INTEGER.UNSIGNED,
-      allowNull: false,
+      allowNull: true,
       field: "medicamento_forma_farmaco_id",
       references: {
         model: "medicamento_forma_farmaco",

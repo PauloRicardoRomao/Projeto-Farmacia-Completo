@@ -11,6 +11,8 @@ receitaRoutes.post("/", ReceitaController.create);
 receitaRoutes.get("/", ReceitaController.findAll);
 receitaRoutes.get("/:id", ReceitaController.findById);
 receitaRoutes.put("/:id", ReceitaController.update);
+receitaRoutes.patch("/:id/aprovar", ReceitaController.aprovar);
+receitaRoutes.patch("/:id/reprovar", ReceitaController.reprovar);
 receitaRoutes.post("/:id/dispensar", ReceitaController.dispensar);
 receitaRoutes.delete("/:id", ReceitaController.delete);
 
