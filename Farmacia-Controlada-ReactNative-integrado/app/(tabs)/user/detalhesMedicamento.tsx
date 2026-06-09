@@ -74,7 +74,6 @@ export default function DetalhesMedicamento() {
 
 
   const [dadosReceita, setDadosReceita] = useState({
-    fotoReceita: null,
     crmMedico: '',
     nomeMedico: '',
     nomePaciente: '',
@@ -219,7 +218,6 @@ export default function DetalhesMedicamento() {
 
   const limparFormularioReceita = () => {
     setDadosReceita({
-      fotoReceita: null,
       crmMedico: '',
       nomeMedico: '',
       nomePaciente: '',
@@ -229,10 +227,6 @@ export default function DetalhesMedicamento() {
   };
 
   const confirmarAgendamento = async () => {
-    if (!receita) {
-      Alert.alert('Atencao', 'Por favor, anexe a foto da receita');
-      return;
-    }
 
     if (!dadosReceita.crmMedico.trim()) {
       Alert.alert('Atencao', 'Por favor, insira o CRM do medico');
@@ -281,9 +275,6 @@ export default function DetalhesMedicamento() {
         ],
       });
 
-      if (receita && resposta.receita?.id) {
-        await api.post(`/imagens/receitas/${resposta.receita.id}`, criarFormDataImagem(receita));
-      }
 
       Alert.alert('Sucesso', 'Receita enviada com sucesso!');
       fecharModalAgendamento();
